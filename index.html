@@ -3,158 +3,881 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nhận Diện Bàn Tay - Hand Detection</title>
-    
-    <!-- Tải thư viện MediaPipe Hands & Camera Utils từ CDN -->
+    <title>1 Million Particle Accelerator - Bugatti & Galaxy Hand Interactive</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- MediaPipe Hands & Camera Utils CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
-    <!-- CSS Giao diện -->
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            user-select: none;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .container {
-            text-align: center;
-            max-width: 900px;
-            width: 100%;
-            padding: 20px;
-        }
-
-        h1 {
-            margin-bottom: 20px;
-            color: #38bdf8;
-        }
-
-        .video-container {
-            position: relative;
-            width: 100%;
-            max-width: 640px;
-            height: 480px;
-            margin: 0 auto;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-            background-color: #1e293b;
-        }
-
-        #input-video {
-            display: none; /* Ẩn video thẻ gốc, hiển thị qua canvas */
-        }
-
-        #output-canvas {
+        body, html {
             width: 100%;
             height: 100%;
-            transform: scaleX(-1); /* Lật ngược camera như soi gương */
+            overflow: hidden;
+            background-color: #030208;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
         }
 
-        #status {
-            margin-top: 15px;
-            font-size: 1rem;
-            color: #94a3b8;
+        #webcam-video {
+            display: none;
+        }
+
+        #gl-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            display: block;
+        }
+
+        #overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2;
+            pointer-events: none;
+            transform: scaleX(-1);
+        }
+
+        .glass-panel {
+            background: rgba(10, 6, 20, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 0, 127, 0.3);
+            box-shadow: 0 10px 40px 0 rgba(0, 240, 255, 0.2);
+        }
+
+        .hud-glow {
+            box-shadow: 0 0 20px rgba(255, 0, 127, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.3);
+        }
+
+        .scanline-fx {
+            background: linear-gradient(
+                to bottom,
+                rgba(255, 255, 255, 0),
+                rgba(255, 255, 255, 0) 50%,
+                rgba(0, 0, 0, 0.4) 50%,
+                rgba(0, 0, 0, 0.4)
+            );
+            background-size: 100% 4px;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Hand Detection Web Application</h1>
-        <div class="video-container">
-            <video id="input-video" playsinline></video>
-            <canvas id="output-canvas"></canvas>
+<body class="relative w-full h-full text-white overflow-hidden">
+
+    <!-- Raw Webcam Feed -->
+    <video id="webcam-video" playsinline></video>
+
+    <!-- WebGL Canvas for 1 Million Particles -->
+    <canvas id="gl-canvas"></canvas>
+
+    <!-- 2D Overlay Canvas for Hand Skeleton -->
+    <canvas id="overlay-canvas"></canvas>
+
+    <!-- CRT Scanlines FX -->
+    <div class="pointer-events-none absolute inset-0 scanline-fx opacity-25 z-10"></div>
+
+    <!-- UI Overlay (HUD & Performance Stats) -->
+    <div class="relative z-20 flex flex-col justify-between w-full h-full p-4 md:p-6 pointer-events-none">
+        
+        <!-- Header HUD -->
+        <div class="flex items-center justify-between w-full">
+            <div class="glass-panel p-3.5 md:p-4 rounded-2xl flex items-center gap-4 pointer-events-auto border border-pink-500/30">
+                <div class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-tr from-pink-600 via-purple-600 to-cyan-500 shadow-lg">
+                    <i data-lucide="atom" class="w-7 h-7 text-white animate-spin" style="animation-duration: 8s;"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-base md:text-xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-400 to-cyan-400 uppercase">
+                        1,000,000+ Particle Accelerator
+                    </h1>
+                    <div class="flex items-center gap-3 text-xs text-cyan-300 font-mono mt-1">
+                        <span class="flex items-center gap-1.5">
+                            <span id="status-dot" class="w-2 h-2 rounded-full bg-yellow-400 animate-ping"></span>
+                            <span id="status-text">Đang tải MediaPipe Hands...</span>
+                        </span>
+                        <span class="text-pink-400 font-bold">|</span>
+                        <span class="text-pink-300 font-semibold" id="fps-display">FPS: 60</span>
+                        <span class="text-pink-400 font-bold">|</span>
+                        <span class="text-purple-300" id="particle-count-display">PARTICLES: 1,000,000</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Right Pip Camera Preview & Controls -->
+            <div class="flex items-center gap-3 pointer-events-auto">
+                <div class="hidden md:block glass-panel p-1 rounded-xl overflow-hidden border border-cyan-500/40 relative w-28 h-20">
+                    <canvas id="pip-canvas" class="w-full h-full rounded-lg object-cover transform scale-x-[-1]"></canvas>
+                    <span class="absolute bottom-1 left-1 text-[9px] font-mono bg-black/70 text-cyan-300 px-1 rounded">CAM FEED</span>
+                </div>
+                <button id="btn-audio" title="Toggle Sound FX" class="glass-panel p-3 rounded-xl text-cyan-300 hover:text-white hover:border-pink-500 transition-all active:scale-95">
+                    <i data-lucide="volume-2" class="w-5 h-5"></i>
+                </button>
+                <button id="btn-fullscreen" title="Toggle Fullscreen" class="glass-panel p-3 rounded-xl text-cyan-300 hover:text-white hover:border-pink-500 transition-all active:scale-95">
+                    <i data-lucide="maximize" class="w-5 h-5"></i>
+                </button>
+            </div>
         </div>
-        <div id="status">Đang khởi tạo Camera và Mô hình MediaPipe...</div>
+
+        <!-- Middle HUD: Active Gesture & Dynamic Component Inspection Card -->
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4 w-full">
+            
+            <!-- Gesture Display -->
+            <div class="glass-panel px-5 py-3.5 rounded-2xl border border-pink-500/40 flex items-center gap-4 hud-glow">
+                <div id="gesture-icon-box" class="w-12 h-12 rounded-xl bg-purple-950/70 border border-cyan-400/50 flex items-center justify-center text-cyan-400">
+                    <i id="gesture-icon" data-lucide="sparkles" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] font-mono text-purple-300 tracking-widest uppercase">CỬ CHỈ BÀN TAY</div>
+                    <div id="gesture-name" class="text-lg md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-cyan-300 font-mono tracking-wide">
+                        STANDBY
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inspect Info Card (Triggered on Index Pointing) -->
+            <div id="inspect-hud" class="glass-panel p-4 md:p-5 rounded-2xl border border-pink-500/50 w-full max-w-md transition-all duration-300 opacity-0 transform translate-y-4 scale-95 pointer-events-auto">
+                <div class="flex items-center justify-between border-b border-pink-500/30 pb-2 mb-2">
+                    <span class="text-xs font-mono text-pink-400 uppercase tracking-widest flex items-center gap-1.5 font-bold">
+                        <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i> PARTICLE INSPECTOR
+                    </span>
+                    <span id="inspect-dir" class="text-[10px] font-mono bg-purple-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/40">DIR: UP</span>
+                </div>
+                <h3 id="inspect-title" class="text-base md:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-purple-300 to-pink-400">
+                    W16 QUAD-TURBO ENGINE
+                </h3>
+                <p id="inspect-desc" class="text-xs text-slate-300 mt-1 leading-relaxed font-mono">
+                    Khối động cơ 8.0L W16 quad-turbo được tạo thành từ 180,000 hạt năng lượng cao.
+                </p>
+                <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div class="bg-black/50 p-2 rounded-lg border border-pink-500/20">
+                        <span class="text-slate-400 block text-[10px]">CÔNG SUẤT / MÔ-MEN</span>
+                        <span id="stat-1" class="text-pink-400 font-bold">1,500 HP / 1,600 Nm</span>
+                    </div>
+                    <div class="bg-black/50 p-2 rounded-lg border border-pink-500/20">
+                        <span class="text-slate-400 block text-[10px]">SỐ LƯỢNG HẠT</span>
+                        <span id="stat-2" class="text-cyan-400 font-bold">185,000 PARTICLES</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Gesture Guide -->
+        <div class="glass-panel p-3 md:p-4 rounded-2xl border border-cyan-500/30 w-full grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 text-xs font-mono">
+            <div class="flex items-center gap-2.5 bg-black/40 p-2 rounded-xl border border-pink-500/20">
+                <div class="p-2 rounded-lg bg-pink-500/20 text-pink-400 border border-pink-500/30 shrink-0">
+                    <i data-lucide="zap" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-pink-300 block text-xs">Búng Tay (Snap)</span>
+                    <span class="text-slate-400 text-[10px]">1M Particle Swirl Galaxy</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2.5 bg-black/40 p-2 rounded-xl border border-cyan-500/20">
+                <div class="p-2 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shrink-0">
+                    <i data-lucide="fist" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-cyan-300 block text-xs">Nắm Tay (Fist)</span>
+                    <span class="text-slate-400 text-[10px]">Bugatti Chiron / Rotation</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2.5 bg-black/40 p-2 rounded-xl border border-purple-500/20">
+                <div class="p-2 rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 shrink-0">
+                    <i data-lucide="hand" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-purple-300 block text-xs">Xòe Bàn Tay</span>
+                    <span class="text-slate-400 text-[10px]">Exploded View Phụ Kiện</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2.5 bg-black/40 p-2 rounded-xl border border-blue-500/20">
+                <div class="p-2 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
+                    <i data-lucide="pointer" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-blue-300 block text-xs">Chỉ Ngón Trỏ</span>
+                    <span class="text-slate-400 text-[10px]">Inspect Chi Tiết Phụ Kiện</span>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- JavaScript Xử lý nhận diện bàn tay -->
+    <!-- MAIN JAVASCRIPT APP -->
     <script>
-        const videoElement = document.getElementById('input-video');
-        const canvasElement = document.getElementById('output-canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const statusElement = document.getElementById('status');
+        lucide.createIcons();
 
-        // Hàm vẽ khung hình và kết quả nhận diện bàn tay
-        function onResults(results) {
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
-
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            
-            // Vẽ hình ảnh từ camera lên canvas
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                statusElement.innerText = `Phát hiện ${results.multiHandLandmarks.length} bàn tay!`;
-                statusElement.style.color = '#4ade80';
-
-                // Lặp qua từng bàn tay và vẽ các đường nối, điểm khớp
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-                        color: '#00FF00',
-                        lineWidth: 4
-                    });
-                    drawLandmarks(canvasCtx, landmarks, {
-                        color: '#FF0000',
-                        lineWidth: 2,
-                        radius: 4
-                    });
-                }
-            } else {
-                statusElement.innerText = "Chưa phát hiện bàn tay nào...";
-                statusElement.style.color = '#94a3b8';
+        // Audio Synthesizer FX
+        class CyberAudio {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
             }
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            playSnapSound() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                
+                // Blast synth curve
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(1200, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.35);
+
+                gain.gain.setValueAtTime(0.6, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            }
+            playAssembleSound() {
+                if (!this.enabled) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(700, now + 0.25);
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+        }
+        const audioFX = new CyberAudio();
+
+        // -------------------------------------------------------------
+        // THREE.JS HIGH PERFORMANCE PARTICLE SYSTEM (1,000,000 PARTICLES)
+        // -------------------------------------------------------------
+        const PARTICLE_COUNT = 1000000;
+        document.getElementById('particle-count-display').innerText = `PARTICLES: ${PARTICLE_COUNT.toLocaleString()}`;
+
+        const glCanvas = document.getElementById('gl-canvas');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+        const pipCanvas = document.getElementById('pip-canvas');
+        const pipCtx = pipCanvas.getContext('2d');
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x030208, 0.025);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.5, 7);
+
+        const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false, alpha: false, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+        // CUSTOM GPU SHADER MATERIAL FOR 1,000,000 PARTICLES
+        const vertexShader = `
+            uniform float uTime;
+            uniform float uMorph;        // 0.0 = Galaxy, 1.0 = Bugatti Assembled
+            uniform float uExplode;      // 0.0 = Assembled, 1.0 = Exploded Parts
+            uniform float uShockwave;    // Snap shockwave factor
             
-            canvasCtx.restore();
+            attribute vec3 aGalaxyPos;
+            attribute vec3 aCarPos;
+            attribute vec3 aExplodeOffset;
+            attribute vec3 aColor;
+            attribute float aSize;
+
+            varying vec3 vColor;
+            varying float vDistance;
+
+            void main() {
+                // Morphing position interpolation between Galaxy and Car
+                vec3 basePos = mix(aGalaxyPos, aCarPos, uMorph);
+
+                // Add Exploded offsets when open palm gesture active
+                basePos += aExplodeOffset * uExplode;
+
+                // Galaxy Vortex Swirl animation
+                if (uMorph < 0.5) {
+                    float angle = uTime * 0.4 + length(basePos.xz) * 0.3;
+                    float sinA = sin(angle);
+                    float cosA = cos(angle);
+                    mat2 rot = mat2(cosA, -sinA, sinA, cosA);
+                    basePos.xz = rot * basePos.xz;
+
+                    // Shockwave pulse
+                    if (uShockwave > 0.01) {
+                        float dist = length(basePos);
+                        basePos += normalize(basePos) * sin(dist * 2.0 - uTime * 10.0) * uShockwave * 0.8;
+                    }
+                }
+
+                vec4 mvPosition = modelViewMatrix * vec4(basePos, 1.0);
+                gl_Position = projectionMatrix * mvPosition;
+
+                // Size attenuation based on depth
+                gl_PointSize = (aSize * (220.0 / -mvPosition.z));
+
+                vColor = aColor;
+                vDistance = -mvPosition.z;
+            }
+        `;
+
+        const fragmentShader = `
+            varying vec3 vColor;
+            varying float vDistance;
+
+            void main() {
+                // Circular particle with smooth neon glow falloff
+                vec2 coord = gl_PointCoord - vec2(0.5);
+                float dist = length(coord);
+                if (dist > 0.5) discard;
+
+                float alpha = smoothstep(0.5, 0.0, dist);
+                vec3 finalColor = mix(vColor, vec3(1.0, 1.0, 1.0), alpha * 0.3);
+
+                gl_FragColor = vec4(finalColor, alpha * 0.85);
+            }
+        `;
+
+        // GENERATE BUFFER GEOMETRY ATTRIBUTES FOR 1,000,000 PARTICLES
+        const geometry = new THREE.BufferGeometry();
+
+        const galaxyPositions = new Float32Array(PARTICLE_COUNT * 3);
+        const carPositions = new Float32Array(PARTICLE_COUNT * 3);
+        const explodeOffsets = new Float32Array(PARTICLE_COUNT * 3);
+        const colors = new Float32Array(PARTICLE_COUNT * 3);
+        const sizes = new Float32Array(PARTICLE_COUNT);
+
+        // Cyberpunk Color Palette (NO GREEN: Crimson, Magenta, Violet, Cyan, Royal Blue)
+        const palette = [
+            new THREE.Color('#ff0055'), // Crimson Red
+            new THREE.Color('#ff007f'), // Deep Magenta
+            new THREE.Color('#9d4edd'), // Neon Violet
+            new THREE.Color('#00f0ff'), // Electric Cyan
+            new THREE.Color('#3a0ca3')  // Royal Blue
+        ];
+
+        // 1. Generate Galaxy Disk & Arm Positions
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            const r = Math.pow(Math.random(), 1.8) * 7.5;
+            const arms = 4;
+            const armAngle = (i % arms) * ((Math.PI * 2) / arms);
+            const swirl = r * 0.8;
+            const theta = armAngle + swirl + (Math.random() - 0.5) * 0.35;
+
+            galaxyPositions[i * 3] = r * Math.cos(theta);
+            galaxyPositions[i * 3 + 1] = (Math.random() - 0.5) * 0.5 * (8.0 - r) / 8.0;
+            galaxyPositions[i * 3 + 2] = r * Math.sin(theta);
+
+            const col = palette[Math.floor(Math.random() * palette.length)];
+            colors[i * 3] = col.r;
+            colors[i * 3 + 1] = col.g;
+            colors[i * 3 + 2] = col.b;
+
+            sizes[i] = Math.random() * 0.08 + 0.02;
         }
 
-        // Khởi tạo MediaPipe Hands
-        const hands = new Hands({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        // 2. Procedural High-Density Bugatti Chiron Particle Shape Generator
+        function generateBugattiParticleMesh() {
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                let x = 0, y = 0, z = 0;
+                let ex = 0, ey = 0, ez = 0;
+
+                const partType = Math.random();
+
+                // a. Main Chassis & Curved Bodywork (45% of particles)
+                if (partType < 0.45) {
+                    const u = (Math.random() - 0.5) * 2.2;
+                    const v = (Math.random() - 0.5) * 4.6;
+                    
+                    // Curved aerodynamic shape
+                    x = u * 1.0;
+                    z = v;
+                    y = -0.3 + Math.cos(u * 1.2) * 0.3 - Math.pow(z / 4.6, 2) * 0.2;
+
+                    // Roof and Cockpit C-Line Curve
+                    if (Math.abs(z) < 1.2 && Math.abs(x) < 0.9) {
+                        y += Math.cos(x * 1.5) * 0.65;
+                    }
+
+                    ex = Math.sign(x) * 1.8;
+                    ey = 0.8;
+                    ez = Math.sign(z) * 1.2;
+                }
+                // b. W16 Engine & Exhaust Block (20% of particles)
+                else if (partType < 0.65) {
+                    x = (Math.random() - 0.5) * 0.9;
+                    y = (Math.random() - 0.5) * 0.5 + 0.1;
+                    z = (Math.random() - 0.5) * 1.1 - 1.1;
+
+                    ex = 0.0;
+                    ey = 2.2;
+                    ez = -2.0;
+                }
+                // c. 4 Wheels & Brakes (20% of particles)
+                else if (partType < 0.85) {
+                    const isFront = Math.random() > 0.5;
+                    const isLeft = Math.random() > 0.5;
+
+                    const radius = Math.random() * 0.45;
+                    const angle = Math.random() * Math.PI * 2;
+                    const width = (Math.random() - 0.5) * 0.35;
+
+                    x = (isLeft ? 1.05 : -1.05) + width;
+                    y = -0.25 + Math.sin(angle) * radius;
+                    z = (isFront ? 1.4 : -1.4) + Math.cos(angle) * radius;
+
+                    ex = isLeft ? 2.5 : -2.5;
+                    ey = -0.5;
+                    ez = isFront ? 1.5 : -1.5;
+                }
+                // d. Active Rear Wing & Headlights (15% of particles)
+                else {
+                    if (Math.random() > 0.4) {
+                        // Spoiler
+                        x = (Math.random() - 0.5) * 1.8;
+                        y = 0.45 + (Math.random() - 0.5) * 0.08;
+                        z = -2.1 + (Math.random() - 0.5) * 0.4;
+
+                        ex = 0.0;
+                        ey = 1.8;
+                        ez = -2.5;
+                    } else {
+                        // Quad Headlights
+                        x = (Math.random() > 0.5 ? 0.7 : -0.7) + (Math.random() - 0.5) * 0.3;
+                        y = -0.1 + (Math.random() - 0.5) * 0.1;
+                        z = 2.1 + (Math.random() - 0.5) * 0.1;
+
+                        ex = Math.sign(x) * 1.2;
+                        ey = 0.5;
+                        ez = 2.0;
+                    }
+                }
+
+                carPositions[i * 3] = x;
+                carPositions[i * 3 + 1] = y;
+                carPositions[i * 3 + 2] = z;
+
+                explodeOffsets[i * 3] = ex;
+                explodeOffsets[i * 3 + 1] = ey;
+                explodeOffsets[i * 3 + 2] = ez;
             }
+        }
+
+        generateBugattiParticleMesh();
+
+        // Attach Buffers
+        geometry.setAttribute('aGalaxyPos', new THREE.BufferAttribute(galaxyPositions, 3));
+        geometry.setAttribute('aCarPos', new THREE.BufferAttribute(carPositions, 3));
+        geometry.setAttribute('aExplodeOffset', new THREE.BufferAttribute(explodeOffsets, 3));
+        geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+
+        // Uniforms for Shader Animation
+        const particleUniforms = {
+            uTime: { value: 0 },
+            uMorph: { value: 0.0 },       // 0.0 = Galaxy, 1.0 = Car
+            uExplode: { value: 0.0 },     // 0.0 = Assembled, 1.0 = Exploded
+            uShockwave: { value: 0.0 }
+        };
+
+        const particleMaterial = new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            uniforms: particleUniforms,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const particleSystem = new THREE.Points(geometry, particleMaterial);
+        scene.add(particleSystem);
+
+        // -------------------------------------------------------------
+        // GESTURES & INTERACTION STATE MACHINE
+        // -------------------------------------------------------------
+        const GESTURES = {
+            NONE: 'STANDBY',
+            SNAP: 'BÚNG TAY (SNAP)',
+            FIST: 'NẮM TAY (FIST)',
+            OPEN_PALM: 'XÒE TAY (EXPLODED)',
+            POINTING: 'CHỈ NGÓN TRỎ (INSPECT)'
+        };
+
+        let currentGesture = GESTURES.NONE;
+        let pointingDir = 'UP';
+
+        let targetMorph = 0.0;    // 0 = Galaxy, 1 = Car
+        let targetExplode = 0.0;  // 0 = Assembled, 1 = Exploded
+        let shockwaveFactor = 0.0;
+
+        let carRotation = { x: 0, y: 0 };
+        let targetCarRotation = { x: 0, y: 0 };
+
+        const gestureNameEl = document.getElementById('gesture-name');
+        const gestureIconEl = document.getElementById('gesture-icon');
+        const inspectHudEl = document.getElementById('inspect-hud');
+
+        function updateGestureHUD(gesture) {
+            gestureNameEl.innerText = gesture;
+            let icon = 'sparkles';
+            if (gesture === GESTURES.SNAP) icon = 'zap';
+            if (gesture === GESTURES.FIST) icon = 'fist';
+            if (gesture === GESTURES.OPEN_PALM) icon = 'hand';
+            if (gesture === GESTURES.POINTING) icon = 'pointer';
+
+            gestureIconEl.setAttribute('data-lucide', icon);
+            lucide.createIcons();
+        }
+
+        // Euclidean Distance Helper
+        function dist(p1, p2) {
+            return Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
+        }
+
+        let snapCooldown = 0;
+        let lastPinchDist = 1.0;
+
+        function detectGesture(landmarks) {
+            if (!landmarks) return GESTURES.NONE;
+
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const middleTip = landmarks[12];
+            const ringTip = landmarks[16];
+            const pinkyTip = landmarks[20];
+
+            const indexPip = landmarks[6];
+            const middlePip = landmarks[10];
+            const ringPip = landmarks[14];
+            const pinkyPip = landmarks[18];
+
+            const isIndexExtended = indexTip.y < indexPip.y;
+            const isMiddleExtended = middleTip.y < middlePip.y;
+            const isRingExtended = ringTip.y < ringPip.y;
+            const isPinkyExtended = pinkyTip.y < pinkyPip.y;
+
+            const isIndexClosed = indexTip.y > indexPip.y;
+            const isMiddleClosed = middleTip.y > middlePip.y;
+            const isRingClosed = ringTip.y > ringPip.y;
+            const isPinkyClosed = pinkyTip.y > pinkyPip.y;
+
+            // 1. Snap Gesture Detection (Thumb & Middle finger pinch release)
+            const pinchDist = dist(thumbTip, middleTip);
+            if (snapCooldown > 0) snapCooldown--;
+
+            if (lastPinchDist < 0.07 && pinchDist > 0.16 && snapCooldown === 0) {
+                snapCooldown = 25;
+                lastPinchDist = pinchDist;
+                return GESTURES.SNAP;
+            }
+            lastPinchDist = pinchDist;
+
+            // 2. Pointing Finger (Only index finger extended)
+            if (isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended) {
+                const dx = indexTip.x - indexPip.x;
+                const dy = indexTip.y - indexPip.y;
+
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    pointingDir = dx > 0 ? 'LEFT' : 'RIGHT';
+                } else {
+                    pointingDir = dy < 0 ? 'UP' : 'DOWN';
+                }
+                return GESTURES.POINTING;
+            }
+
+            // 3. Open Palm (All extended)
+            if (isIndexExtended && isMiddleExtended && isRingExtended && isPinkyExtended) {
+                return GESTURES.OPEN_PALM;
+            }
+
+            // 4. Fist Gesture (All closed)
+            if (isIndexClosed && isMiddleClosed && isRingClosed && isPinkyClosed) {
+                return GESTURES.FIST;
+            }
+
+            return GESTURES.NONE;
+        }
+
+        // Draw Skeleton overlay in Cyan/Magenta/Violet
+        function drawSkeletonOverlay(landmarks) {
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            if (!landmarks) return;
+
+            const w = overlayCanvas.width;
+            const h = overlayCanvas.height;
+
+            overlayCtx.lineWidth = 3.5;
+
+            HAND_CONNECTIONS.forEach(([start, end]) => {
+                const p1 = landmarks[start];
+                const p2 = landmarks[end];
+
+                const grad = overlayCtx.createLinearGradient(p1.x * w, p1.y * h, p2.x * w, p2.y * h);
+                grad.addColorStop(0, '#ff007f');
+                grad.addColorStop(0.5, '#9d4edd');
+                grad.addColorStop(1, '#00f0ff');
+
+                overlayCtx.strokeStyle = grad;
+                overlayCtx.shadowColor = '#00f0ff';
+                overlayCtx.shadowBlur = 10;
+
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(p1.x * w, p1.y * h);
+                overlayCtx.lineTo(p2.x * w, p2.y * h);
+                overlayCtx.stroke();
+            });
+
+            landmarks.forEach((pt, idx) => {
+                overlayCtx.fillStyle = (idx === 4 || idx === 8) ? '#ff0055' : '#00f0ff';
+                overlayCtx.shadowColor = '#ff007f';
+                overlayCtx.shadowBlur = 12;
+
+                overlayCtx.beginPath();
+                overlayCtx.arc(pt.x * w, pt.y * h, 5, 0, Math.PI * 2);
+                overlayCtx.fill();
+            });
+        }
+
+        // Component Inspection Data
+        const componentData = {
+            'UP': {
+                title: "ĐỘNG CƠ W16 QUAD-TURBO 8.0L",
+                desc: "Khối động cơ 16 xy-lanh dạng W với 4 bộ tăng áp Turbocharger kép siêu phân luồng.",
+                s1: "1,500 HP / 1,600 Nm",
+                s2: "185,000 PARTICLES"
+            },
+            'DOWN': {
+                title: "BÁNH XE MICHELIN CUP 2 & CARBON CERAMIC",
+                desc: "Lốp Michelin Pilot Sport Cup 2 độc quyền cùng đĩa phanh Gốm Carbon tản nhiệt.",
+                s1: "TỐC ĐỘ: 420+ KM/H",
+                s2: "160,000 PARTICLES"
+            },
+            'LEFT': {
+                title: "KHUNG GẦM MONOCOQUE CARBON FIBER",
+                desc: "Khung vòm nguyên khối gia cường bằng Sợi Carbon đạt độ cứng xoắn cao nhất.",
+                s1: "ĐỘ CỨNG: 50,000 Nm/độ",
+                s2: "220,000 PARTICLES"
+            },
+            'RIGHT': {
+                title: "CÁNH GIÓ ACTIVE REAR WING & KHÍ ĐỘNG HỌC",
+                desc: "Cánh gió thông minh tự động thay đổi góc mở làm phanh không khí khẩn cấp.",
+                s1: "LỰC ÉP XUỐNG: 350 KG",
+                s2: "110,000 PARTICLES"
+            }
+        };
+
+        function handleGestureState(gesture, landmarks) {
+            if (gesture === GESTURES.SNAP) {
+                targetMorph = 0.0;     // Back to Galaxy
+                targetExplode = 0.0;
+                shockwaveFactor = 2.5; // Trigger Shockwave
+                audioFX.playSnapSound();
+                inspectHudEl.classList.add('opacity-0', 'translate-y-4', 'scale-95');
+            }
+            else if (gesture === GESTURES.FIST) {
+                if (targetMorph < 0.5) audioFX.playAssembleSound();
+                targetMorph = 1.0;     // Morph to Assembled Bugatti
+                targetExplode = 0.0;   // Fully assembled
+
+                // Motion control car rotation based on Fist position
+                const wrist = landmarks[0];
+                targetCarRotation.y = (wrist.x - 0.5) * Math.PI * 2.5;
+                targetCarRotation.x = (wrist.y - 0.5) * Math.PI * 1.2;
+
+                inspectHudEl.classList.add('opacity-0', 'translate-y-4', 'scale-95');
+            }
+            else if (gesture === GESTURES.OPEN_PALM) {
+                targetMorph = 1.0;
+                targetExplode = 1.0;   // Exploded Parts View
+                inspectHudEl.classList.add('opacity-0', 'translate-y-4', 'scale-95');
+            }
+            else if (gesture === GESTURES.POINTING) {
+                targetMorph = 1.0;
+                targetExplode = 1.0;   // Keep exploded for inspecting
+
+                const data = componentData[pointingDir] || componentData['UP'];
+                document.getElementById('inspect-dir').innerText = `DIR: ${pointingDir}`;
+                document.getElementById('inspect-title').innerText = data.title;
+                document.getElementById('inspect-desc').innerText = data.desc;
+                document.getElementById('stat-1').innerText = data.s1;
+                document.getElementById('stat-2').innerText = data.s2;
+
+                inspectHudEl.classList.remove('opacity-0', 'translate-y-4', 'scale-95');
+            }
+        }
+
+        // On MediaPipe Results Callback
+        function onResults(results) {
+            if (overlayCanvas.width !== window.innerWidth || overlayCanvas.height !== window.innerHeight) {
+                overlayCanvas.width = window.innerWidth;
+                overlayCanvas.height = window.innerHeight;
+            }
+
+            // Update PiP Canvas preview
+            pipCtx.drawImage(results.image, 0, 0, pipCanvas.width, pipCanvas.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+
+                drawSkeletonOverlay(landmarks);
+                const detected = detectGesture(landmarks);
+
+                if (detected !== GESTURES.NONE) {
+                    currentGesture = detected;
+                    updateGestureHUD(currentGesture);
+                    handleGestureState(currentGesture, landmarks);
+                }
+            } else {
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            }
+        }
+
+        // MediaPipe Initialization
+        const videoElement = document.getElementById('webcam-video');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
 
         hands.setOptions({
-            maxNumHands: 2,
+            maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+            minDetectionConfidence: 0.65,
+            minTrackingConfidence: 0.65
         });
 
         hands.onResults(onResults);
 
-        // Mở Camera
-        const camera = new Camera(videoElement, {
+        const cameraUtils = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({ image: videoElement });
             },
-            width: 640,
-            height: 480
+            width: 1280,
+            height: 720
         });
 
-        camera.start()
+        cameraUtils.start()
             .then(() => {
-                statusElement.innerText = "Camera đã sẵn sàng! Đưa tay lên trước webcam.";
+                statusText.innerText = "CAMERA HOẠT ĐỘNG! SẴN SÀNG NHẬN DIỆN.";
+                statusDot.classList.remove('bg-yellow-400');
+                statusDot.classList.add('bg-cyan-400');
             })
             .catch(err => {
-                console.error("Lỗi truy cập Camera: ", err);
-                statusElement.innerText = "Không thể mở camera. Vui lòng cấp quyền webcam cho trình duyệt.";
-                statusElement.style.color = '#f87171';
+                console.error(err);
+                statusText.innerText = "LỖI CAMERA! VUI LÒNG CẤP QUYỀN WEBCAM.";
+                statusDot.classList.remove('bg-yellow-400');
+                statusDot.classList.add('bg-red-500');
             });
+
+        // -------------------------------------------------------------
+        // ANIMATION LOOP & FPS COUNTER
+        // -------------------------------------------------------------
+        const clock = new THREE.Clock();
+        let frameCount = 0;
+        let lastFpsUpdate = performance.now();
+        const fpsDisplay = document.getElementById('fps-display');
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+
+            // FPS Counter
+            frameCount++;
+            const now = performance.now();
+            if (now - lastFpsUpdate >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+                fpsDisplay.innerText = `FPS: ${fps}`;
+                frameCount = 0;
+                lastFpsUpdate = now;
+            }
+
+            // Smooth Uniform Interpolation
+            particleUniforms.uTime.value = elapsedTime;
+
+            particleUniforms.uMorph.value += (targetMorph - particleUniforms.uMorph.value) * 0.08;
+            particleUniforms.uExplode.value += (targetExplode - particleUniforms.uExplode.value) * 0.08;
+
+            if (shockwaveFactor > 0) {
+                shockwaveFactor *= 0.92;
+                particleUniforms.uShockwave.value = shockwaveFactor;
+            }
+
+            // Smooth Motion Rotation
+            carRotation.x += (targetCarRotation.x - carRotation.x) * 0.08;
+            carRotation.y += (targetCarRotation.y - carRotation.y) * 0.08;
+
+            particleSystem.rotation.x = carRotation.x;
+            particleSystem.rotation.y = carRotation.y;
+
+            // Continuous slow rotation if in galaxy mode
+            if (targetMorph < 0.5) {
+                particleSystem.rotation.y += 0.003;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Window Resizing
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+            overlayCanvas.width = window.innerWidth;
+            overlayCanvas.height = window.innerHeight;
+        });
+
+        // Controls
+        document.getElementById('btn-audio').addEventListener('click', () => {
+            audioFX.enabled = !audioFX.enabled;
+            document.getElementById('btn-audio').classList.toggle('opacity-50', !audioFX.enabled);
+        });
+
+        document.getElementById('btn-fullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        });
     </script>
 </body>
 </html>
