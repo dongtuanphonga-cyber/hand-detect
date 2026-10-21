@@ -186,17 +186,17 @@
         <div class="glass-panel p-3 md:p-4 rounded-2xl border border-cyan-500/30 w-full grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 text-xs font-mono">
             <div class="flex items-center gap-2.5 bg-black/40 p-2 rounded-xl border border-pink-500/20">
                 <div class="p-2 rounded-lg bg-pink-500/20 text-pink-400 border border-pink-500/30 shrink-0">
-                    <i data-lucide="zap" class="w-4 h-4"></i>
+                    <i data-lucide="v" class="w-4 h-4"></i>
                 </div>
                 <div>
-                    <span class="font-bold text-pink-300 block text-xs">Búng Tay (Snap)</span>
+                    <span class="font-bold text-pink-300 block text-xs">V-Sign (Peace)</span>
                     <span class="text-slate-400 text-[10px]">1M Particle Swirl Galaxy</span>
                 </div>
             </div>
 
             <div class="flex items-center gap-2.5 bg-black/40 p-2 rounded-xl border border-cyan-500/20">
                 <div class="p-2 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shrink-0">
-                    <i data-lucide="fist" class="w-4 h-4"></i>
+                    <i data-lucide="shield" class="w-4 h-4"></i>
                 </div>
                 <div>
                     <span class="font-bold text-cyan-300 block text-xs">Nắm Tay (Fist)</span>
@@ -239,12 +239,10 @@
             init() {
                 if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            playSnapSound() {
+            playGalaxySound() {
                 if (!this.enabled) return;
                 this.init();
                 const now = this.ctx.currentTime;
-                
-                // Blast synth curve
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'sawtooth';
@@ -308,7 +306,7 @@
             uniform float uTime;
             uniform float uMorph;        // 0.0 = Galaxy, 1.0 = Bugatti Assembled
             uniform float uExplode;      // 0.0 = Assembled, 1.0 = Exploded Parts
-            uniform float uShockwave;    // Snap shockwave factor
+            uniform float uShockwave;    // V-Sign shockwave factor
             
             attribute vec3 aGalaxyPos;
             attribute vec3 aCarPos;
@@ -320,13 +318,9 @@
             varying float vDistance;
 
             void main() {
-                // Morphing position interpolation between Galaxy and Car
                 vec3 basePos = mix(aGalaxyPos, aCarPos, uMorph);
-
-                // Add Exploded offsets when open palm gesture active
                 basePos += aExplodeOffset * uExplode;
 
-                // Galaxy Vortex Swirl animation
                 if (uMorph < 0.5) {
                     float angle = uTime * 0.4 + length(basePos.xz) * 0.3;
                     float sinA = sin(angle);
@@ -334,7 +328,6 @@
                     mat2 rot = mat2(cosA, -sinA, sinA, cosA);
                     basePos.xz = rot * basePos.xz;
 
-                    // Shockwave pulse
                     if (uShockwave > 0.01) {
                         float dist = length(basePos);
                         basePos += normalize(basePos) * sin(dist * 2.0 - uTime * 10.0) * uShockwave * 0.8;
@@ -343,8 +336,6 @@
 
                 vec4 mvPosition = modelViewMatrix * vec4(basePos, 1.0);
                 gl_Position = projectionMatrix * mvPosition;
-
-                // Size attenuation based on depth
                 gl_PointSize = (aSize * (220.0 / -mvPosition.z));
 
                 vColor = aColor;
@@ -357,7 +348,6 @@
             varying float vDistance;
 
             void main() {
-                // Circular particle with smooth neon glow falloff
                 vec2 coord = gl_PointCoord - vec2(0.5);
                 float dist = length(coord);
                 if (dist > 0.5) discard;
@@ -369,7 +359,6 @@
             }
         `;
 
-        // GENERATE BUFFER GEOMETRY ATTRIBUTES FOR 1,000,000 PARTICLES
         const geometry = new THREE.BufferGeometry();
 
         const galaxyPositions = new Float32Array(PARTICLE_COUNT * 3);
@@ -378,7 +367,7 @@
         const colors = new Float32Array(PARTICLE_COUNT * 3);
         const sizes = new Float32Array(PARTICLE_COUNT);
 
-        // Cyberpunk Color Palette (NO GREEN: Crimson, Magenta, Violet, Cyan, Royal Blue)
+        // Cyberpunk Palette (STRICTLY NO GREEN)
         const palette = [
             new THREE.Color('#ff0055'), // Crimson Red
             new THREE.Color('#ff007f'), // Deep Magenta
@@ -387,7 +376,6 @@
             new THREE.Color('#3a0ca3')  // Royal Blue
         ];
 
-        // 1. Generate Galaxy Disk & Arm Positions
         for (let i = 0; i < PARTICLE_COUNT; i++) {
             const r = Math.pow(Math.random(), 1.8) * 7.5;
             const arms = 4;
@@ -407,48 +395,34 @@
             sizes[i] = Math.random() * 0.08 + 0.02;
         }
 
-        // 2. Procedural High-Density Bugatti Chiron Particle Shape Generator
         function generateBugattiParticleMesh() {
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 let x = 0, y = 0, z = 0;
                 let ex = 0, ey = 0, ez = 0;
-
                 const partType = Math.random();
 
-                // a. Main Chassis & Curved Bodywork (45% of particles)
                 if (partType < 0.45) {
                     const u = (Math.random() - 0.5) * 2.2;
                     const v = (Math.random() - 0.5) * 4.6;
-                    
-                    // Curved aerodynamic shape
                     x = u * 1.0;
                     z = v;
                     y = -0.3 + Math.cos(u * 1.2) * 0.3 - Math.pow(z / 4.6, 2) * 0.2;
-
-                    // Roof and Cockpit C-Line Curve
                     if (Math.abs(z) < 1.2 && Math.abs(x) < 0.9) {
                         y += Math.cos(x * 1.5) * 0.65;
                     }
-
                     ex = Math.sign(x) * 1.8;
                     ey = 0.8;
                     ez = Math.sign(z) * 1.2;
-                }
-                // b. W16 Engine & Exhaust Block (20% of particles)
-                else if (partType < 0.65) {
+                } else if (partType < 0.65) {
                     x = (Math.random() - 0.5) * 0.9;
                     y = (Math.random() - 0.5) * 0.5 + 0.1;
                     z = (Math.random() - 0.5) * 1.1 - 1.1;
-
                     ex = 0.0;
                     ey = 2.2;
                     ez = -2.0;
-                }
-                // c. 4 Wheels & Brakes (20% of particles)
-                else if (partType < 0.85) {
+                } else if (partType < 0.85) {
                     const isFront = Math.random() > 0.5;
                     const isLeft = Math.random() > 0.5;
-
                     const radius = Math.random() * 0.45;
                     const angle = Math.random() * Math.PI * 2;
                     const width = (Math.random() - 0.5) * 0.35;
@@ -456,28 +430,21 @@
                     x = (isLeft ? 1.05 : -1.05) + width;
                     y = -0.25 + Math.sin(angle) * radius;
                     z = (isFront ? 1.4 : -1.4) + Math.cos(angle) * radius;
-
                     ex = isLeft ? 2.5 : -2.5;
                     ey = -0.5;
                     ez = isFront ? 1.5 : -1.5;
-                }
-                // d. Active Rear Wing & Headlights (15% of particles)
-                else {
+                } else {
                     if (Math.random() > 0.4) {
-                        // Spoiler
                         x = (Math.random() - 0.5) * 1.8;
                         y = 0.45 + (Math.random() - 0.5) * 0.08;
                         z = -2.1 + (Math.random() - 0.5) * 0.4;
-
                         ex = 0.0;
                         ey = 1.8;
                         ez = -2.5;
                     } else {
-                        // Quad Headlights
                         x = (Math.random() > 0.5 ? 0.7 : -0.7) + (Math.random() - 0.5) * 0.3;
                         y = -0.1 + (Math.random() - 0.5) * 0.1;
                         z = 2.1 + (Math.random() - 0.5) * 0.1;
-
                         ex = Math.sign(x) * 1.2;
                         ey = 0.5;
                         ez = 2.0;
@@ -496,18 +463,16 @@
 
         generateBugattiParticleMesh();
 
-        // Attach Buffers
         geometry.setAttribute('aGalaxyPos', new THREE.BufferAttribute(galaxyPositions, 3));
         geometry.setAttribute('aCarPos', new THREE.BufferAttribute(carPositions, 3));
         geometry.setAttribute('aExplodeOffset', new THREE.BufferAttribute(explodeOffsets, 3));
         geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
         geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
 
-        // Uniforms for Shader Animation
         const particleUniforms = {
             uTime: { value: 0 },
-            uMorph: { value: 0.0 },       // 0.0 = Galaxy, 1.0 = Car
-            uExplode: { value: 0.0 },     // 0.0 = Assembled, 1.0 = Exploded
+            uMorph: { value: 0.0 },
+            uExplode: { value: 0.0 },
             uShockwave: { value: 0.0 }
         };
 
@@ -528,7 +493,7 @@
         // -------------------------------------------------------------
         const GESTURES = {
             NONE: 'STANDBY',
-            SNAP: 'BÚNG TAY (SNAP)',
+            V_SIGN: 'V-SIGN (GALAXY ACCELERATOR)',
             FIST: 'NẮM TAY (FIST)',
             OPEN_PALM: 'XÒE TAY (EXPLODED)',
             POINTING: 'CHỈ NGÓN TRỎ (INSPECT)'
@@ -536,11 +501,9 @@
 
         let currentGesture = GESTURES.NONE;
         let pointingDir = 'UP';
-
-        let targetMorph = 0.0;    // 0 = Galaxy, 1 = Car
-        let targetExplode = 0.0;  // 0 = Assembled, 1 = Exploded
+        let targetMorph = 0.0;
+        let targetExplode = 0.0;
         let shockwaveFactor = 0.0;
-
         let carRotation = { x: 0, y: 0 };
         let targetCarRotation = { x: 0, y: 0 };
 
@@ -551,8 +514,8 @@
         function updateGestureHUD(gesture) {
             gestureNameEl.innerText = gesture;
             let icon = 'sparkles';
-            if (gesture === GESTURES.SNAP) icon = 'zap';
-            if (gesture === GESTURES.FIST) icon = 'fist';
+            if (gesture === GESTURES.V_SIGN) icon = 'v';
+            if (gesture === GESTURES.FIST) icon = 'shield';
             if (gesture === GESTURES.OPEN_PALM) icon = 'hand';
             if (gesture === GESTURES.POINTING) icon = 'pointer';
 
@@ -560,18 +523,9 @@
             lucide.createIcons();
         }
 
-        // Euclidean Distance Helper
-        function dist(p1, p2) {
-            return Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z);
-        }
-
-        let snapCooldown = 0;
-        let lastPinchDist = 1.0;
-
         function detectGesture(landmarks) {
             if (!landmarks) return GESTURES.NONE;
 
-            const thumbTip = landmarks[4];
             const indexTip = landmarks[8];
             const middleTip = landmarks[12];
             const ringTip = landmarks[16];
@@ -584,30 +538,21 @@
 
             const isIndexExtended = indexTip.y < indexPip.y;
             const isMiddleExtended = middleTip.y < middlePip.y;
-            const isRingExtended = ringTip.y < ringPip.y;
-            const isPinkyExtended = pinkyTip.y < pinkyPip.y;
-
-            const isIndexClosed = indexTip.y > indexPip.y;
-            const isMiddleClosed = middleTip.y > middlePip.y;
             const isRingClosed = ringTip.y > ringPip.y;
             const isPinkyClosed = pinkyTip.y > pinkyPip.y;
 
-            // 1. Snap Gesture Detection (Thumb & Middle finger pinch release)
-            const pinchDist = dist(thumbTip, middleTip);
-            if (snapCooldown > 0) snapCooldown--;
+            const isIndexClosed = indexTip.y > indexPip.y;
+            const isMiddleClosed = middleTip.y > middlePip.y;
 
-            if (lastPinchDist < 0.07 && pinchDist > 0.16 && snapCooldown === 0) {
-                snapCooldown = 25;
-                lastPinchDist = pinchDist;
-                return GESTURES.SNAP;
+            // 1. V-Sign / Peace Sign: Index & Middle extended, Ring & Pinky closed
+            if (isIndexExtended && isMiddleExtended && isRingClosed && isPinkyClosed) {
+                return GESTURES.V_SIGN;
             }
-            lastPinchDist = pinchDist;
 
-            // 2. Pointing Finger (Only index finger extended)
-            if (isIndexExtended && !isMiddleExtended && !isRingExtended && !isPinkyExtended) {
+            // 2. Pointing Finger (Only index extended)
+            if (isIndexExtended && !isMiddleExtended && !isRingClosed && !isPinkyClosed) {
                 const dx = indexTip.x - indexPip.x;
                 const dy = indexTip.y - indexPip.y;
-
                 if (Math.abs(dx) > Math.abs(dy)) {
                     pointingDir = dx > 0 ? 'LEFT' : 'RIGHT';
                 } else {
@@ -617,8 +562,11 @@
             }
 
             // 3. Open Palm (All extended)
-            if (isIndexExtended && isMiddleExtended && isRingExtended && isPinkyExtended) {
-                return GESTURES.OPEN_PALM;
+            if (isIndexExtended && isMiddleExtended && !isRingClosed && !isPinkyClosed) {
+                // Check if ring & pinky are also extended
+                if (ringTip.y < ringPip.y && pinkyTip.y < pinkyPip.y) {
+                    return GESTURES.OPEN_PALM;
+                }
             }
 
             // 4. Fist Gesture (All closed)
@@ -629,14 +577,12 @@
             return GESTURES.NONE;
         }
 
-        // Draw Skeleton overlay in Cyan/Magenta/Violet
         function drawSkeletonOverlay(landmarks) {
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             if (!landmarks) return;
 
             const w = overlayCanvas.width;
             const h = overlayCanvas.height;
-
             overlayCtx.lineWidth = 3.5;
 
             HAND_CONNECTIONS.forEach(([start, end]) => {
@@ -669,7 +615,6 @@
             });
         }
 
-        // Component Inspection Data
         const componentData = {
             'UP': {
                 title: "ĐỘNG CƠ W16 QUAD-TURBO 8.0L",
@@ -698,19 +643,18 @@
         };
 
         function handleGestureState(gesture, landmarks) {
-            if (gesture === GESTURES.SNAP) {
-                targetMorph = 0.0;     // Back to Galaxy
+            if (gesture === GESTURES.V_SIGN) {
+                targetMorph = 0.0;
                 targetExplode = 0.0;
-                shockwaveFactor = 2.5; // Trigger Shockwave
-                audioFX.playSnapSound();
+                shockwaveFactor = 2.5;
+                audioFX.playGalaxySound();
                 inspectHudEl.classList.add('opacity-0', 'translate-y-4', 'scale-95');
             }
             else if (gesture === GESTURES.FIST) {
                 if (targetMorph < 0.5) audioFX.playAssembleSound();
-                targetMorph = 1.0;     // Morph to Assembled Bugatti
-                targetExplode = 0.0;   // Fully assembled
+                targetMorph = 1.0;
+                targetExplode = 0.0;
 
-                // Motion control car rotation based on Fist position
                 const wrist = landmarks[0];
                 targetCarRotation.y = (wrist.x - 0.5) * Math.PI * 2.5;
                 targetCarRotation.x = (wrist.y - 0.5) * Math.PI * 1.2;
@@ -719,12 +663,12 @@
             }
             else if (gesture === GESTURES.OPEN_PALM) {
                 targetMorph = 1.0;
-                targetExplode = 1.0;   // Exploded Parts View
+                targetExplode = 1.0;
                 inspectHudEl.classList.add('opacity-0', 'translate-y-4', 'scale-95');
             }
             else if (gesture === GESTURES.POINTING) {
                 targetMorph = 1.0;
-                targetExplode = 1.0;   // Keep exploded for inspecting
+                targetExplode = 1.0;
 
                 const data = componentData[pointingDir] || componentData['UP'];
                 document.getElementById('inspect-dir').innerText = `DIR: ${pointingDir}`;
@@ -737,19 +681,16 @@
             }
         }
 
-        // On MediaPipe Results Callback
         function onResults(results) {
             if (overlayCanvas.width !== window.innerWidth || overlayCanvas.height !== window.innerHeight) {
                 overlayCanvas.width = window.innerWidth;
                 overlayCanvas.height = window.innerHeight;
             }
 
-            // Update PiP Canvas preview
             pipCtx.drawImage(results.image, 0, 0, pipCanvas.width, pipCanvas.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-
                 drawSkeletonOverlay(landmarks);
                 const detected = detectGesture(landmarks);
 
@@ -763,7 +704,6 @@
             }
         }
 
-        // MediaPipe Initialization
         const videoElement = document.getElementById('webcam-video');
         const statusText = document.getElementById('status-text');
         const statusDot = document.getElementById('status-dot');
@@ -802,9 +742,6 @@
                 statusDot.classList.add('bg-red-500');
             });
 
-        // -------------------------------------------------------------
-        // ANIMATION LOOP & FPS COUNTER
-        // -------------------------------------------------------------
         const clock = new THREE.Clock();
         let frameCount = 0;
         let lastFpsUpdate = performance.now();
@@ -815,7 +752,6 @@
 
             const elapsedTime = clock.getElapsedTime();
 
-            // FPS Counter
             frameCount++;
             const now = performance.now();
             if (now - lastFpsUpdate >= 1000) {
@@ -825,9 +761,7 @@
                 lastFpsUpdate = now;
             }
 
-            // Smooth Uniform Interpolation
             particleUniforms.uTime.value = elapsedTime;
-
             particleUniforms.uMorph.value += (targetMorph - particleUniforms.uMorph.value) * 0.08;
             particleUniforms.uExplode.value += (targetExplode - particleUniforms.uExplode.value) * 0.08;
 
@@ -836,14 +770,12 @@
                 particleUniforms.uShockwave.value = shockwaveFactor;
             }
 
-            // Smooth Motion Rotation
             carRotation.x += (targetCarRotation.x - carRotation.x) * 0.08;
             carRotation.y += (targetCarRotation.y - carRotation.y) * 0.08;
 
             particleSystem.rotation.x = carRotation.x;
             particleSystem.rotation.y = carRotation.y;
 
-            // Continuous slow rotation if in galaxy mode
             if (targetMorph < 0.5) {
                 particleSystem.rotation.y += 0.003;
             }
@@ -853,7 +785,6 @@
 
         animate();
 
-        // Window Resizing
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -865,7 +796,6 @@
             overlayCanvas.height = window.innerHeight;
         });
 
-        // Controls
         document.getElementById('btn-audio').addEventListener('click', () => {
             audioFX.enabled = !audioFX.enabled;
             document.getElementById('btn-audio').classList.toggle('opacity-50', !audioFX.enabled);
