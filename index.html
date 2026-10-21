@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhận Diện Bàn Tay - Hand Detection</title>
+    
+    <!-- Tải thư viện MediaPipe Hands & Camera Utils từ CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <!-- CSS Giao diện -->
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 900px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #38bdf8;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            margin: 0 auto;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            background-color: #1e293b;
+        }
+
+        #input-video {
+            display: none; /* Ẩn video thẻ gốc, hiển thị qua canvas */
+        }
+
+        #output-canvas {
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1); /* Lật ngược camera như soi gương */
+        }
+
+        #status {
+            margin-top: 15px;
+            font-size: 1rem;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hand Detection Web Application</h1>
+        <div class="video-container">
+            <video id="input-video" playsinline></video>
+            <canvas id="output-canvas"></canvas>
+        </div>
+        <div id="status">Đang khởi tạo Camera và Mô hình MediaPipe...</div>
+    </div>
+
+    <!-- JavaScript Xử lý nhận diện bàn tay -->
+    <script>
+        const videoElement = document.getElementById('input-video');
+        const canvasElement = document.getElementById('output-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusElement = document.getElementById('status');
+
+        // Hàm vẽ khung hình và kết quả nhận diện bàn tay
+        function onResults(results) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Vẽ hình ảnh từ camera lên canvas
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusElement.innerText = `Phát hiện ${results.multiHandLandmarks.length} bàn tay!`;
+                statusElement.style.color = '#4ade80';
+
+                // Lặp qua từng bàn tay và vẽ các đường nối, điểm khớp
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+                        color: '#00FF00',
+                        lineWidth: 4
+                    });
+                    drawLandmarks(canvasCtx, landmarks, {
+                        color: '#FF0000',
+                        lineWidth: 2,
+                        radius: 4
+                    });
+                }
+            } else {
+                statusElement.innerText = "Chưa phát hiện bàn tay nào...";
+                statusElement.style.color = '#94a3b8';
+            }
+            
+            canvasCtx.restore();
+        }
+
+        // Khởi tạo MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        // Mở Camera
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        camera.start()
+            .then(() => {
+                statusElement.innerText = "Camera đã sẵn sàng! Đưa tay lên trước webcam.";
+            })
+            .catch(err => {
+                console.error("Lỗi truy cập Camera: ", err);
+                statusElement.innerText = "Không thể mở camera. Vui lòng cấp quyền webcam cho trình duyệt.";
+                statusElement.style.color = '#f87171';
+            });
+    </script>
+</body>
+</html>
